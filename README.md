@@ -37,7 +37,7 @@ Chế độ `AI_PROVIDER=demo` chỉ trả phản hồi mẫu và không gọi A
 
 - `server/app.py`: server standard library, trang test và endpoint `/chat/api/message` (SSE `message` + `done`). Câu trả lời được tạo xong rồi gửi một lần; chưa stream từng token.
 - `server/static/widget.js`: widget, lịch sử hội thoại trong bộ nhớ tab, reset, timeout và thông báo lỗi.
-- `server/static/demo.html`: trang test riêng, hiển thị chế độ demo/AI.
+- `server/static/demo.html`: trang chat tối giản, mở trực tiếp hội thoại.
 - `bot/system_prompt.md`, `kb/`: prompt và kiến thức snapshot ngày 22/10/2026. Giá/tồn kho không cập nhật trực tiếp.
 
 Repo chỉ lấy source cần thiết và KB Markdown; không kèm raw payments, dữ liệu tài khoản ngân hàng, `.env` hay lịch sử Git của repo gốc. Không cần chạy scanner để thử chatbox.
