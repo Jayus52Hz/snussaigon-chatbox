@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Snus Sài Gòn · Chatbox test</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:#f4f3ef;color:#242923;font:16px/1.6 system-ui,sans-serif}main{max-width:780px;padding:80px 28px;margin:auto}small{color:#63735b;letter-spacing:.12em}h1{font-size:clamp(36px,7vw,60px);line-height:1.12;letter-spacing:-.04em;margin:20px 0}p{max-width:580px;color:#62675f}.card{margin-top:36px;padding:24px;border:1px solid #d9ddd4;background:#fff;border-radius:18px}button{cursor:pointer;font:inherit}#open-chat{background:#264b39;color:#fff;border:0;border-radius:10px;padding:13px 22px}#mode{font-weight:600;color:#264b39}code{background:#eceee8;padding:2px 5px;border-radius:4px}
+  </style>
+</head>
+<body>
+  <main>
+    <small>SNUS SÀI GÒN / CHATBOX LAB</small>
+    <h1>Thử hội thoại.<br>Chỉ riêng chatbox.</h1>
+    <p>Giao diện thử độc lập dùng server và kiến thức đã tách từ dự án. Bấm nút chat ở góc dưới hoặc bắt đầu bên dưới.</p>
+    <button id="open-chat" type="button">Mở chatbox ↗</button>
+    <div class="card"><div id="mode" role="status">Đang kiểm tra server…</div><p>Không có API key: thử giao diện với phản hồi mẫu. Để thử AI, điền <code>ANTHROPIC_API_KEY</code> và <code>MODEL</code> trong <code>.env</code>, rồi khởi động lại server.</p><p>Dữ liệu catalog là bản chụp ngày 22/10/2026, dùng để kiểm thử. Sản phẩm chỉ dành cho người đủ 18 tuổi. Nicotine gây nghiện.</p></div>
+  </main>
+  <script src="/chat/widget.js"></script>
+  <script>
+    document.getElementById('open-chat').onclick = () => window.SnusChat.open();
+    fetch('/chat/health').then(r => r.json()).then(data => {
+      document.getElementById('mode').textContent = data.mode === 'demo' ? 'Chế độ demo · Chưa gọi AI' : `Chế độ AI · ${data.model || 'Cần cấu hình MODEL'}`;
+    }).catch(() => { document.getElementById('mode').textContent = 'Không kết nối được server'; });
+  </script>
+</body>
+</html>
