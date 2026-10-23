@@ -37,7 +37,7 @@ class ServerTests(unittest.TestCase):
                 self.assertIn(expected, response.read())
 
     def test_demo_sse_without_key(self):
-        with patch.dict(app.os.environ, {"ANTHROPIC_API_KEY": ""}):
+        with patch.dict(app.os.environ, {"AI_PROVIDER": "demo", "ANTHROPIC_API_KEY": ""}):
             with self.post({"message": "hello", "history": []}) as response:
                 text = response.read().decode()
                 self.assertIn("text/event-stream", response.headers["content-type"])
@@ -53,7 +53,7 @@ class ServerTests(unittest.TestCase):
 
     def test_provider_receives_conversation(self):
         prior = [{"role": "user", "content": "hello"}, {"role": "assistant", "content": "hi"}]
-        with patch.object(app, "ask_anthropic", return_value="Test answer") as provider:
+        with patch.object(app, "ask_model", return_value="Test answer") as provider:
             with self.post({"message": "thanks", "history": prior}) as response:
                 self.assertIn(b"Test answer", response.read())
             messages = provider.call_args.args[0]
@@ -61,11 +61,34 @@ class ServerTests(unittest.TestCase):
             self.assertEqual(messages[-1], {"role": "user", "content": "thanks"})
 
     def test_provider_errors_do_not_leak_secrets(self):
-        with patch.object(app, "ask_anthropic", side_effect=RuntimeError("sk-ant-private-key")):
+        with patch.object(app, "ask_model", side_effect=RuntimeError("sk-ant-private-key")):
             with self.assertRaises(HTTPError) as caught:
                 self.post({"message": "hello"})
             self.assertEqual(caught.exception.code, 502)
             self.assertNotIn(b"sk-ant-private-key", caught.exception.read())
+
+    def test_codex_protocol_and_conversation(self):
+        output = '\n'.join(json.dumps(event) for event in [
+            {"type": "thread.started", "thread_id": "test"},
+            {"type": "item.completed", "item": {"type": "agent_message", "text": "Xin chào"}},
+            {"type": "turn.completed"},
+        ])
+        result = app.subprocess.CompletedProcess([], 0, stdout=output, stderr="")
+        with patch.object(app.shutil, "which", return_value="codex"), patch.object(app.subprocess, "run", return_value=result) as run, patch.dict(app.os.environ, {"MODEL": "gpt-5.6-luna"}):
+            answer = app.ask_codex([{"role": "user", "content": "hello"}])
+        self.assertEqual(answer, "Xin chào")
+        args, kwargs = run.call_args
+        self.assertIn("gpt-5.6-luna", args[0])
+        self.assertIn("--ephemeral", args[0])
+        self.assertIn("read-only", args[0])
+        self.assertIn("hello", kwargs["input"])
+
+    def test_codex_failed_turn_cannot_look_successful(self):
+        output = json.dumps({"type": "item.completed", "item": {"type": "agent_message", "text": "partial"}})
+        result = app.subprocess.CompletedProcess([], 0, stdout=output, stderr="")
+        with patch.object(app.shutil, "which", return_value="codex"), patch.object(app.subprocess, "run", return_value=result):
+            with self.assertRaises(RuntimeError):
+                app.ask_codex([{"role": "user", "content": "hello"}])
 
     def test_arbitrary_files_are_not_served(self):
         for route in ("/.env", "/kb/shop_policies.md", "/chat/../.env"):

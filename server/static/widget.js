@@ -44,7 +44,7 @@
     if (!message || controller) return;
     input.value = ''; add(message, 'user'); submit.disabled = true; status.textContent = 'Đang trả lời…';
     const active = new AbortController(); controller = active;
-    const timer = setTimeout(() => active.abort(), 65000);
+    const timer = setTimeout(() => active.abort(), 120000);
     try {
       const response = await fetch('/chat/api/message', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({message, history}), signal:active.signal});
       if (!response.ok) {

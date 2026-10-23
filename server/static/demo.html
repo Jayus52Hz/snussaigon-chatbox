@@ -14,13 +14,13 @@
     <h1>Thử hội thoại.<br>Chỉ riêng chatbox.</h1>
     <p>Giao diện thử độc lập dùng server và kiến thức đã tách từ dự án. Bấm nút chat ở góc dưới hoặc bắt đầu bên dưới.</p>
     <button id="open-chat" type="button">Mở chatbox ↗</button>
-    <div class="card"><div id="mode" role="status">Đang kiểm tra server…</div><p>Không có API key: thử giao diện với phản hồi mẫu. Để thử AI, điền <code>ANTHROPIC_API_KEY</code> và <code>MODEL</code> trong <code>.env</code>, rồi khởi động lại server.</p><p>Dữ liệu catalog là bản chụp ngày 22/10/2026, dùng để kiểm thử. Sản phẩm chỉ dành cho người đủ 18 tuổi. Nicotine gây nghiện.</p></div>
+    <div class="card"><div id="mode" role="status">Đang kiểm tra server…</div><p>Dùng tài khoản ChatGPT đã đăng nhập trong Codex CLI để thử GPT 5.6 Luna. Không cần API key riêng. Hội thoại giữ trong tab này; nút ↺ bắt đầu lại. Yêu cầu AI được gửi qua Codex và sử dụng hạn mức tài khoản.</p><p>Dữ liệu catalog là bản chụp ngày 22/10/2026, dùng để kiểm thử. Sản phẩm chỉ dành cho người đủ 18 tuổi. Nicotine gây nghiện.</p></div>
   </main>
   <script src="/chat/widget.js"></script>
   <script>
     document.getElementById('open-chat').onclick = () => window.SnusChat.open();
     fetch('/chat/health').then(r => r.json()).then(data => {
-      document.getElementById('mode').textContent = data.mode === 'demo' ? 'Chế độ demo · Chưa gọi AI' : `Chế độ AI · ${data.model || 'Cần cấu hình MODEL'}`;
+      document.getElementById('mode').textContent = data.mode === 'demo' ? 'Chế độ demo · Chưa gọi AI' : `Chế độ ${data.mode === 'codex' ? 'Codex / ChatGPT' : 'AI'} · ${data.model}`;
     }).catch(() => { document.getElementById('mode').textContent = 'Không kết nối được server'; });
   </script>
 </body>
