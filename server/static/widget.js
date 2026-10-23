@@ -41,7 +41,7 @@
   const log = root.querySelector('.log'), input = root.querySelector('textarea');
   const form = root.querySelector('form'), submit = form.querySelector('button');
   const status = root.querySelector('.status');
-  let history = [], controller = null;
+  let history = [], controller = null, conversationId;
   function add(text, who) {
     const p = document.createElement('p');
     p.className = 'bubble' + (who === 'user' ? ' user' : '');
@@ -51,7 +51,7 @@
   function open() { input.focus(); }
   function reset() {
     if (controller) controller.abort();
-    controller = null; history = []; log.replaceChildren(); status.textContent = ''; submit.disabled = false; input.value = ''; input.style.height = '';
+    controller = null; conversationId = crypto.randomUUID(); history = []; log.replaceChildren(); status.textContent = ''; submit.disabled = false; input.value = ''; input.style.height = '';
     add('Chào bạn! Mình có thể giúp gì cho bạn?');
   }
   root.querySelector('[data-reset]').onclick = () => { reset(); input.focus(); };
@@ -67,9 +67,10 @@
     if (!message || controller) return;
     input.value = ''; input.style.height = ''; add(message, 'user'); submit.disabled = true; status.textContent = 'Đang trả lời…';
     const active = new AbortController(); controller = active;
+    const requestId = crypto.randomUUID(), currentConversation = conversationId;
     const timer = setTimeout(() => active.abort(), 120000);
     try {
-      const response = await fetch('/chat/api/message', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({message, history}), signal:active.signal});
+      const response = await fetch('/chat/api/message', {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({message, history, conversation_id:currentConversation, request_id:requestId}), signal:active.signal});
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
         throw new Error(error.detail || error.error || `HTTP ${response.status}`);

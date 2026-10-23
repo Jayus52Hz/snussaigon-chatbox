@@ -30,7 +30,7 @@ SNUSSAIGON_MCP_TOKEN=your-local-cms-token
 
 Nếu PATH trỏ đến Codex CLI cũ, đặt `CODEX_BIN` trong `.env` bằng đường dẫn đầy đủ tới bản mới. Các thiết lập này chỉ áp dụng cho tiến trình chatbox; không thay đổi model của ứng dụng Codex đang mở.
 
-Chatbox giữ 8 tin nhắn gần nhất trong bộ nhớ tab và gửi lại ngữ cảnh mỗi lượt. Backend gọi `codex exec --ephemeral` cho từng lượt, dùng lại **phiên đăng nhập**; không tạo một chat bền vững trong giao diện ChatGPT/Codex. Reset hoặc tải lại trang sẽ xóa lịch sử. Cách này phù hợp test local, chưa phải tích hợp app-server cho hội thoại lưu lâu dài.
+Chatbox giữ 8 tin nhắn gần nhất trong bộ nhớ tab và gửi lại ngữ cảnh mỗi lượt. Backend gọi `codex exec --ephemeral` cho từng lượt, dùng lại **phiên đăng nhập**; không tạo một chat bền vững trong giao diện ChatGPT/Codex. Reset hoặc tải lại trang bắt đầu cuộc chat mới; bản lưu hỗ trợ khách hàng vẫn còn trong SQLite local và không tự đưa vào ngữ cảnh của cuộc chat mới.
 
 Backend không đọc/copy token đăng nhập: Codex CLI tự dùng thông tin đăng nhập của nó. Lệnh chạy trong thư mục tạm, sandbox chỉ đọc, tắt shell tool/apps/multi-agent và bỏ qua config người dùng. Không đưa lỗi chi tiết hay token về trình duyệt. `.env` đã được bỏ qua bởi Git; biến môi trường terminal được ưu tiên hơn `.env`.
 
@@ -67,3 +67,21 @@ Widget dùng endpoint cùng origin. Để nhúng trên trang khác, phục vụ 
 ```powershell
 python -m unittest discover -s tests -v
 ```
+
+## Lưu hội thoại để hỗ trợ khách hàng
+
+Backend tự lưu các tin nhắn được chấp nhận kể từ khi bật module vào `data/chat-history.sqlite3`. Mỗi lượt có mã hội thoại, mã yêu cầu, tin khách gửi, câu trả lời bot, thời gian UTC, model/provider, thời gian xử lý và trạng thái. Tin khách được ghi trước khi gọi AI; lỗi AI vẫn giữ được tin khách, chỉ ghi mã lỗi chung. Câu trả lời được lưu trước khi gửi về trình duyệt, nên đóng tab/reset khi đang chờ không xóa bản lưu trên server.
+
+Không lưu lại toàn bộ mảng lịch sử gửi kèm, không lưu prompt, token, stdout/stderr Codex hay toàn bộ dữ liệu MCP. Gửi lại cùng request ID đã hoàn tất sẽ trả câu trả lời đã lưu mà không tạo thêm lượt/gọi AI lần nữa. Gửi lại nội dung bằng một request ID mới được xem là lượt mới.
+
+Tra cứu bằng terminal tại thư mục repo:
+
+```powershell
+python server/chat_store.py list
+python server/chat_store.py show MA_HOI_THOAI
+python server/chat_store.py export MA_HOI_THOAI --output support-exports/chat.json
+```
+
+Module chỉ cung cấp CLI local; không có API tải danh sách hoặc nội dung hội thoại cho trình duyệt khách. Database và `support-exports/` được Git bỏ qua. Muốn chuyển vị trí lưu, đặt `CHAT_DB_PATH` trong môi trường khi chạy server/CLI, hoặc dùng `--db DUONG_DAN` với CLI. Nếu đặt đường dẫn riêng trong `.env` của server, truyền cùng đường dẫn bằng `--db` khi dùng CLI.
+
+Hội thoại được lưu cho đến khi người vận hành quản lý file database; chưa có tự xóa theo kỳ hạn hoặc khôi phục các cuộc chat trước khi module được bật. Giao diện khách vẫn chỉ có chat, không thêm bảng log hay ghi chú kỹ thuật.

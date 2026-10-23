@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """Small streaming chat server; only the standard library is required to run it."""
 from __future__ import annotations
-import json, os, re, shutil, subprocess, sys, tempfile
+import json, os, re, shutil, sqlite3, subprocess, sys, tempfile, time, uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
+try:
+    from chat_store import ChatStore
+except ModuleNotFoundError:
+    from server.chat_store import ChatStore
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -21,6 +25,7 @@ def load_env():
             os.environ.setdefault(key.strip(), value.strip().strip("\"'"))
 
 load_env()
+CHAT_STORE = ChatStore()
 KB = ROOT / "kb"
 PORT = int(os.getenv("PORT", "8787"))
 MAX_BODY, MAX_MESSAGE = 64_000, 2_000
@@ -31,6 +36,13 @@ def model_name():
 
 def provider_name():
     return os.getenv("AI_PROVIDER", "demo").strip().lower()
+
+def request_uuid(body, name):
+    if name not in body:
+        return str(uuid.uuid4())
+    if not isinstance(body[name], str):
+        raise ValueError(f"{name} must be a UUID string")
+    return str(uuid.UUID(body[name]))
 
 def ask_codex(messages):
     """Use the installed Codex login; send the tab's conversation each turn."""
@@ -130,6 +142,13 @@ def fallback(message):
     return "Dạ em chưa đủ thông tin để trả lời chính xác câu này. Anh/chị nhắn Zalo 0896 561 023 để shop hỗ trợ thêm ạ."
 
 class Handler(BaseHTTPRequestHandler):
+    def send_answer(self, answer, conversation_id, request_id):
+        payload = ("event: message\ndata: " + json.dumps({"text": answer, "conversation_id": conversation_id, "request_id": request_id}, ensure_ascii=False) + "\n\n" +
+                   "event: done\ndata: {}\n\n").encode()
+        try:
+            self.send_response(200); self.send_header("content-type", "text/event-stream; charset=utf-8"); self.send_header("cache-control", "no-cache"); self.send_header("content-length", str(len(payload))); self.end_headers(); self.wfile.write(payload)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            pass
     def send_json(self, status, payload):
         raw = json.dumps(payload, ensure_ascii=False).encode()
         self.send_response(status); self.send_header("content-type", "application/json; charset=utf-8")
@@ -145,6 +164,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_error(404)
     def do_POST(self):
         if urlparse(self.path).path != "/chat/api/message": return self.send_error(404)
+        pending_request = None
+        started = time.monotonic()
         try:
             length = int(self.headers.get("content-length", "0"))
             if length < 1: return self.send_json(400, {"error": "empty request"})
@@ -162,13 +183,27 @@ class Handler(BaseHTTPRequestHandler):
             ): return self.send_json(400, {"error": "invalid history"})
             prior = [{"role": item["role"], "content": item["content"]} for item in history[-8:]]
             prior.append({"role": "user", "content": message})
+            conversation_id = request_uuid(body, "conversation_id")
+            request_id = request_uuid(body, "request_id")
+            existing = CHAT_STORE.start_turn(conversation_id, request_id, message, provider_name(), model_name())
+            if existing:
+                if existing["status"] == "completed":
+                    return self.send_answer(existing["assistant_text"], conversation_id, request_id)
+                return self.send_json(409, {"error": "Tin nhắn này đang xử lý hoặc đã thất bại. Hãy gửi lại thành tin nhắn mới."})
+            pending_request = request_id
             answer = ask_model(prior) or fallback(message)
-            payload = ("event: message\ndata: " + json.dumps({"text": answer}, ensure_ascii=False) + "\n\n" +
-                       "event: done\ndata: {}\n\n").encode()
-            self.send_response(200); self.send_header("content-type", "text/event-stream; charset=utf-8"); self.send_header("cache-control", "no-cache"); self.send_header("content-length", str(len(payload))); self.end_headers(); self.wfile.write(payload)
+            CHAT_STORE.finish_turn(request_id, answer=answer, duration_ms=round((time.monotonic() - started) * 1000))
+            pending_request = None
+            self.send_answer(answer, conversation_id, request_id)
+        except sqlite3.Error:
+            self.send_json(503, {"error": "Chưa lưu được hội thoại local. Vui lòng thử lại."})
         except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as exc:
+            if pending_request:
+                CHAT_STORE.finish_turn(pending_request, error="invalid_model_configuration", duration_ms=round((time.monotonic() - started) * 1000))
             self.send_json(400, {"error": "invalid request or model configuration", "detail": mask(str(exc))[:250]})
         except Exception:
+            if pending_request:
+                CHAT_STORE.finish_turn(pending_request, error="ai_request_failed", duration_ms=round((time.monotonic() - started) * 1000))
             self.send_json(502, {"error": "Không gọi được AI. Nếu dùng Codex: kiểm tra codex login status, quyền dùng model và hạn mức tài khoản."})
     def log_message(self, fmt, *args): pass
 
