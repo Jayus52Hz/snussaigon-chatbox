@@ -31,7 +31,7 @@ class ServerTests(unittest.TestCase):
         return urlopen(Request(self.url + "/chat/api/message", data=json.dumps(body).encode(), headers={"content-type": "application/json"}), timeout=5)
 
     def test_page_widget_and_health(self):
-        for route, expected in (("/", b"/chat/widget.js"), ("/chat/widget.js", b"window.SnusChat"), ("/chat/health", b'"kb": true')):
+        for route, expected in (("/", b"/chat/widget.js"), ("/chat/widget.js", b"window.SnusChat"), ("/chat/health", b'"data_source":')):
             with urlopen(self.url + route) as response:
                 self.assertEqual(response.status, 200)
                 self.assertIn(expected, response.read())
